@@ -89,6 +89,23 @@ local consumer_identifiers = {
   "username"
 }
 
+local function check_entry(entry)
+  local allowed_entry = {
+    name = true,
+    stat_type = true,
+    tags = true,
+    sample_rate = true,
+    consumer_identifier = true
+  }
+  for property, _ in pairs(entry) do
+    if allowed_entry[property] == nil then
+      return false,"property '"..property.."' is not supported"
+    end
+      allowed_entry[property] = nil
+  end
+  return true
+end
+
 local function check_value(table, element)
   for _, value in pairs(table) do
     if value == element then
@@ -106,7 +123,7 @@ local function check_tag_value(value)
     if ok then 
       local _,next = pl_utils.splitv(entry, ':')
       if not next or #next == 0 then
-        return false, "(key '"..entry.."' has no value)"
+        return false, "key '"..entry.."' has no value"
       end
     end
   end
@@ -115,9 +132,13 @@ end
 
 local function check_schema(value)
   for _, entry in ipairs(value) do
+    local entry_ok, entry_error = check_entry(entry)
     local name_ok = check_value(metrics, entry.name)
     local type_ok = check_value(stat_types, entry.stat_type)
     local tag_ok, tag_error = check_tag_value(entry.tags)
+    if not entry_ok then
+      return false, "malformed metrics:"..entry_error.."."
+    end
     if entry.name == nil or entry.stat_type == nil then
       return false, "name and stat_type must be defined for all stats"
     end
@@ -128,7 +149,7 @@ local function check_schema(value)
       return false, "unrecognized stat_type: "..entry.stat_type
     end
     if not tag_ok then
-      return false, "malformed tags:["..tag_error.."]. Tags must be list of key[:value]"
+      return false, "malformed tags: "..tag_error..". Tags must be list of key[:value]"
     end
     if entry.name == "unique_users" and entry.stat_type ~= "set" then
       return false, "unique_users metric only works with stat_type 'set'"
